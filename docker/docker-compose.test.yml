@@ -1,0 +1,34 @@
+services:
+  test-app:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    volumes:
+      - ..:/app
+    env_file:
+      - ../.env
+    command: yarn test
+    depends_on:
+      test-redis:
+        condition: service_healthy
+    networks:
+      - test-scopely
+    environment:
+      - NODE_ENV=test
+      - REDIS_URL=redis://test-redis:6379
+    profiles: ["test"]
+
+  test-redis:
+    image: redis:latest
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 3s
+      timeout: 3s
+      retries: 5
+    networks:
+      - test-scopely
+    profiles: ["test"]
+
+networks:
+  test-scopely:
+    driver: bridge
