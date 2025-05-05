@@ -1,0 +1,180 @@
+import Joi from 'joi';
+import bcrypt from 'bcryptjs';
+import jwt from 'jsonwebtoken';
+import { app } from '../app';
+import RedisPlayerRepository from '../db/playerRepository';
+import { logger } from '../utils/logger';
+import authenticate from '../middlewares/authMiddleware';
+import { PlayerData } from '../types/player';
+
+const JWT_SECRET = process.env.JWT_SECRET || 'default_secret';
+
+const createPlayerSchema = Joi.object({
+  name: Joi.string().max(20).required(),
+  password: Joi.string().required(),
+  description: Joi.string().max(1000).required(),
+  gold: Joi.number().min(0).max(1000000000).default(0),
+  silver: Joi.number().min(0).max(1000000000).default(0),
+  attackValue: Joi.number().min(5).default(0),
+  defenseValue: Joi.number().min(5).default(0),
+  hitPoints: Joi.number().min(0).default(0),
+}).custom((value, helper) => {
+  const total = value.attackValue + value.defenseValue;
+  if (total > 30) {
+    return helper.message({ custom: 'attackValue and defenseValue must sum up to 30' });
+  }
+  return value;
+}, 'attack+defense sum validation');
+
+const updatePlayerSchema = Joi.object({
+  name: Joi.string().max(20),
+  description: Joi.string().max(1000),
+  gold: Joi.number().min(0).max(1000000000),
+  silver: Joi.number().min(0).max(1000000000),
+  attackValue: Joi.number().min(5),
+  defenseValue: Joi.number().min(5),
+  hitPoints: Joi.number().min(0),
+}).custom((value, helper) => {
+  const total = value.attackValue + value.defenseValue;
+  if (total > 30) {
+    return helper.message({ custom: 'attackValue and defenseValue must sum up to 30' });
+  }
+  return value;
+}, 'attack+defense sum validation');
+
+// Login validation
+const loginSchema = Joi.object({
+  name: Joi.string().required(),
+  password: Joi.string().required(),
+});
+
+// Create Player
+app.post('/player', async (req: any, res: any) => {
+  const { error, value } = createPlayerSchema.validate(req.body);
+
+  if (error) {
+    logger.error(error, 'Error creating player.');
+    return res.send({ message: error.details[0].message }, 400);
+  }
+
+  if (await RedisPlayerRepository.checkIfNameExists(value.name)) {
+    logger.error({ message: 'Name already in use' }, 'Error creating player.');
+    return res.send({ message: 'Name already in use' }, 409);
+  }
+
+  const hashedPassword = await bcrypt.hash(value.password, 10);
+  const playerData: PlayerData = { ...value, password: hashedPassword };
+
+  try {
+    const player = await RedisPlayerRepository.createPlayer(playerData);
+    const { password, ...playerWithoutPassword } = player;
+    return res.send(playerWithoutPassword, 201);
+  } catch (err) {
+    logger.error(err, 'Error creating player.');
+    return res.send({ message: 'Error creating player.' }, 500);
+  }
+});
+
+// Player Login
+app.post('/player/login', async (req: any, res: any) => {
+  const { error, value } = loginSchema.validate(req.body);
+
+  if (error) {
+    logger.error(error, 'Error authenticating player.');
+    return res.send({ message: error.details[0].message }, 400);
+  }
+
+  try {
+    const player = await RedisPlayerRepository.getPlayerByName(value.name);
+    if (!player) {
+      logger.error({ message: 'Player not found.' }, 'Error authenticating player.');
+      return res.send({ message: 'Invalid credentials.' }, 401);
+    }
+
+    const validPassword = await bcrypt.compare(value.password, player.password);
+    if (!validPassword) {
+      logger.error({ message: 'Incorrect password.' }, 'Error authenticating player.');
+      return res.send({ message: 'Invalid credentials.' }, 401);
+    }
+
+    const token = jwt.sign(
+      { id: player.id, name: player.name },
+      JWT_SECRET,
+      { expiresIn: '1h' }
+    );
+
+    return res.send({ token }, 200);
+  } catch (err) {
+    logger.error(err, 'Error during login.');
+    return res.send({ message: 'Login failed.' }, 500);
+  }
+});
+
+// Get Player by ID
+app.get('/player/:id', authenticate, async (req: any, res: any) => {
+  const { id } = req.params;
+
+  try {
+    const player = await RedisPlayerRepository.getPlayerById(id);
+    if (!player) {
+      logger.error({ message: 'Player not found.' }, 'Error fetching player.');
+      return res.send({ message: 'Player not found.' }, 404);
+    }
+    return res.send(player, 200);
+  } catch (err) {
+    logger.error(err, 'Error fetching player.');
+    return res.send({ message: 'Error fetching player.' }, 500);
+  }
+});
+
+// Update Player
+app.put('/player/:id', authenticate, async (req: any, res: any) => {
+  const { id } = req.params;
+  if (id !== req.user.id) {
+    logger.error({ message: 'Player not the owner.' }, 'Error updating player.');
+    return res.send({ message: 'Unauthorized.' }, 403);
+  }
+
+  const { error, value } = updatePlayerSchema.validate(req.body);
+
+  if (error) {
+    logger.error(error, 'Error updating player.');
+    return res.send({ message: error.details[0].message }, 400);
+  }
+
+  const updates: Partial<PlayerData> = value;
+
+  try {
+    const updatedPlayer = await RedisPlayerRepository.updatePlayer(id, updates);
+    if (!updatedPlayer) {
+      logger.error({ message: 'Player not found.' }, 'Error updating player.');
+      return res.send({ message: 'Player not found.' }, 404);
+    }
+    return res.send(updatedPlayer, 200);
+  } catch (err) {
+    logger.error(err, 'Error updating player.');
+    return res.send({ message: 'Error updating player.' }, 500);
+  }
+});
+
+// Delete Player
+app.delete('/player/:id', authenticate, async (req: any, res: any) => {
+  const { id } = req.params;
+  if (id !== req.user.id) {
+    logger.error({ message: 'Player not the owner.' }, 'Error deleting player.');
+    return res.send({ message: 'Unauthorized.' }, 403);
+  }
+
+  try {
+    const success = await RedisPlayerRepository.deletePlayer(id);
+    if (!success) {
+      logger.error({ message: 'Player not found.' }, 'Error deleting player.');
+      return res.send({ message: 'Player not found.' }, 404);
+    }
+    return res.send({ message: 'Player deleted successfully.' }, 200);
+  } catch (err) {
+    logger.error(err, 'Error deleting player.');
+    return res.send({ message: 'Error deleting player.' }, 500);
+  }
+});
+

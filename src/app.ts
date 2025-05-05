@@ -12,3 +12,4 @@ app.use(cors());
 app.use(bodyParser.json());
 
 // Routes would go here...
+import './controllers/playerController';  // Import the controller to register routes
