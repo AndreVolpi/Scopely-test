@@ -12,4 +12,6 @@ app.use(cors());
 app.use(bodyParser.json());
 
 // Routes would go here...
-import './controllers/playerController';  // Import the controller to register routes
+// Import the controllers to register routes
+import './controllers/battleController';
+import './controllers/playerController';

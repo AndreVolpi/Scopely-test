@@ -1,0 +1,31 @@
+import { app } from '../app';
+import RedisPlayerRepository from '../db/playerRepository';
+import { logger } from '../utils/logger';
+import authenticate from '../middlewares/authMiddleware';
+import RedisClientSingleton from '../db/redisClient';
+import { v4 as uuidv4 } from 'uuid';
+
+
+app.post('/battle/:targetId', authenticate, async (req: any, res: any) => {
+  const redis = await RedisClientSingleton.getInstance();
+  try {
+    const targetPlayer = await RedisPlayerRepository.getPlayerById(req.params.targetId);
+    if (!targetPlayer) {
+      logger.error({ message: 'Player not  playerfound.' }, 'Error enqueuing battle.');
+      return res.send({ message: 'Player not found.' }, 404);
+    }
+
+    const battleId = uuidv4();
+    const battleData = JSON.stringify({ player1Id: req.user.id, player2Id: targetPlayer.id });
+    await redis.set(`battle:${battleId}`, battleData);
+    await redis.rPush('battleQueue', battleId);
+
+    return res.send({
+      enqueued: true,
+      battleId: battleId,
+    }, 200);
+  } catch (err) {
+    logger.error(err, 'Error enqueuing battle.');
+    return res.send({ message: 'Error enqueuing battle.' }, 500);
+  }
+});
