@@ -2,6 +2,7 @@ import RedisClientSingleton from '../db/redisClient';
 import RedisPlayerRepository from '../db/playerRepository';
 import { logger } from '../utils/logger';
 import { PlayerData } from '../types/player';
+import { BattleReport } from '../types/battle';
 
 const calculateAttackValue = (player: { attack: number; hp: number, currentHp: number }) => {
   const healthPercentage = player.currentHp / player.hp;
@@ -41,17 +42,13 @@ const processBattle = async () => {
     return; // Skip this battle if we don't have data
   }
 
-  const battleReport = await battleFlow(player1, player2);
+  await battleFlow(battleId, player1, player2);
 
   // Remove the battle from the queue (if not already removed)
   await client.del(`battle:${battleId}`);
-
-  // Log battle report
-  // TODO: Save report or return to requester
-  logger.info(`Battle Report: ${JSON.stringify(battleReport)}`);
 };
 
-const battleFlow = async (player1: PlayerData, player2: PlayerData) => {
+const battleFlow = async (battleId: string, player1: PlayerData, player2: PlayerData) => {
 
   let battle: BattleReport = {
     players: [
@@ -90,6 +87,8 @@ const battleFlow = async (player1: PlayerData, player2: PlayerData) => {
     if (defender.currentHp <= 0) {
       battle.battleWinner = attacker.name;
     }
+
+    saveReport(battleId, battle);
   }
 
   // Calculate resources stolen (same percentage for both gold and silver)
@@ -113,10 +112,18 @@ const battleFlow = async (player1: PlayerData, player2: PlayerData) => {
     silver: loser.silver - silverStolen
   });
 
+  saveReport(battleId, battle);
+
   // TODO: Submit resources stolen to leaderboard
   // await RedisPlayerRepository.submitToLeaderboard(winner.id, goldStolen, silverStolen);
+};
 
-  return battle;
+const saveReport = async (battleId: string, battleReport: BattleReport) => {
+  const client = await RedisClientSingleton.getInstance();
+
+  client.set(`battle:report:${battleId}`, JSON.stringify(battleReport)).catch((err: any) => {
+    logger.error(err, `Failed to save battle report ${battleId}:`);
+  });
 };
 
 export default processBattle;

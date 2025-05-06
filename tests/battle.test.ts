@@ -1,5 +1,6 @@
 import battleLogicService from '../src/services/battleLogicService';
 import { PlayerData } from '../src/types/player';
+import { BattleReport } from '../src/types/battle';
 import RedisClientSingleton from '../src/db/redisClient';
 import RedisPlayerRepository from '../src/db/playerRepository';
 import { app } from '../src/app';
@@ -112,8 +113,7 @@ describe('Battle API Endpoints', () => {
     expect(battleData).toContain(battlePlayer2.id);
 
     // Confirm battle is in the queue
-    const queue = await redis.lRange('battleQueue', 0, -1);
-    expect(queue).toContain(battleId);
+    expect(await redis.lPop('battleQueue')).toEqual(battleId);
   });
 
   it('should return 401 if no token is provided', async () => {
@@ -137,5 +137,42 @@ describe('Battle API Endpoints', () => {
       message: expect.stringMatching(/Player not found./i),
     }));
   });
+
+  it('should be able to get report', async () => {
+    const responseBattle = await request(app)
+      .post(`/battle/${battlePlayer2.id}`)
+      .send()
+      .set('Authorization', `Bearer ${playerToken}`);
+
+    const { battleId } = responseBattle.body;
+
+    // Run the battle logic
+    await battleLogicService();
+
+    const response = await request(app)
+      .get(`/battle/${battleId}`)
+      .send()
+      .set('Authorization', `Bearer ${playerToken}`);
+
+    expect(response.statusCode).toBe(200);
+    assertIsBattleReport(response.body);
+  });
+
+  function assertIsBattleReport(report: any): asserts report is BattleReport {
+    expect(report).toBeDefined();
+    expect(Array.isArray(report.players)).toBe(true);
+    expect(report.players.length).toBe(2);
+
+    expect(Array.isArray(report.rounds)).toBe(true);
+    expect(report.rounds.length).toBeGreaterThan(0);
+
+    expect(typeof report.battleWinner).toBe('string');
+
+    expect(report.resourcesStolen).toBeDefined();
+    expect(typeof report.resourcesStolen.gold).toBe('number');
+    expect(typeof report.resourcesStolen.silver).toBe('number');
+    expect(report.resourcesStolen.gold).toBeGreaterThanOrEqual(0);
+    expect(report.resourcesStolen.silver).toBeGreaterThanOrEqual(0);
+  }
 });
 

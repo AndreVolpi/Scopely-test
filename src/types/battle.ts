@@ -1,4 +1,4 @@
-interface BattleReport {
+export interface BattleReport {
   players: {
     id: string;
     name: string;
