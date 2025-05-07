@@ -15,3 +15,4 @@ app.use(bodyParser.json());
 // Import the controllers to register routes
 import './controllers/battleController';
 import './controllers/playerController';
+import './controllers/leaderboardController';

@@ -1,5 +1,6 @@
 import RedisClientSingleton from '../db/redisClient';
 import RedisPlayerRepository from '../db/playerRepository';
+import LeaderboardRepository from '../db/leaderboardRepository';
 import { logger } from '../utils/logger';
 import { PlayerData } from '../types/player';
 import { BattleReport } from '../types/battle';
@@ -114,8 +115,7 @@ const battleFlow = async (battleId: string, player1: PlayerData, player2: Player
 
   saveReport(battleId, battle);
 
-  // TODO: Submit resources stolen to leaderboard
-  // await RedisPlayerRepository.submitToLeaderboard(winner.id, goldStolen, silverStolen);
+  LeaderboardRepository.updateLeaderboardFromBattle(battle);
 };
 
 const saveReport = async (battleId: string, battleReport: BattleReport) => {
