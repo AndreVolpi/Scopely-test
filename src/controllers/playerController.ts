@@ -48,7 +48,52 @@ const loginSchema = Joi.object({
   password: Joi.string().required(),
 });
 
-// Create Player
+/**
+ * @swagger
+ * tags:
+ *   name: Player
+ *   description: Operations related to player management
+ */
+
+/**
+ * @swagger
+ * /player:
+ *   post:
+ *     summary: Create a new player
+ *     tags: [Player]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               name:
+ *                 type: string
+ *               password:
+ *                 type: string
+ *               description:
+ *                 type: string
+ *               gold:
+ *                 type: number
+ *               silver:
+ *                 type: number
+ *               attackValue:
+ *                 type: number
+ *               defenseValue:
+ *                 type: number
+ *               hitPoints:
+ *                 type: number
+ *     responses:
+ *       201:
+ *         description: Player created successfully
+ *       400:
+ *         description: Validation error
+ *       409:
+ *         description: Name already in use
+ *       500:
+ *         description: Internal server error
+ */
 app.post('/player', async (req: any, res: any) => {
   const { error, value } = createPlayerSchema.validate(req.body);
 
@@ -75,7 +120,40 @@ app.post('/player', async (req: any, res: any) => {
   }
 });
 
-// Player Login
+/**
+ * @swagger
+ * /player/login:
+ *   post:
+ *     summary: Authenticate a player and return a JWT token
+ *     tags: [Player]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               name:
+ *                 type: string
+ *               password:
+ *                 type: string
+ *     responses:
+ *       200:
+ *         description: Login successful
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 token:
+ *                   type: string
+ *       400:
+ *         description: Validation error
+ *       401:
+ *         description: Invalid credentials
+ *       500:
+ *         description: Internal server error
+ */
 app.post('/player/login', async (req: any, res: any) => {
   const { error, value } = loginSchema.validate(req.body);
 
@@ -110,7 +188,29 @@ app.post('/player/login', async (req: any, res: any) => {
   }
 });
 
-// Get Player by ID
+/**
+ * @swagger
+ * /player/{id}:
+ *   get:
+ *     summary: Get a player by ID
+ *     tags: [Player]
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         schema:
+ *           type: string
+ *         required: true
+ *         description: The player ID
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Player data
+ *       404:
+ *         description: Player not found
+ *       500:
+ *         description: Internal server error
+ */
 app.get('/player/:id', authenticate, async (req: any, res: any) => {
   const { id } = req.params;
 
@@ -127,7 +227,54 @@ app.get('/player/:id', authenticate, async (req: any, res: any) => {
   }
 });
 
-// Update Player
+/**
+ * @swagger
+ * /player/{id}:
+ *   put:
+ *     summary: Update a player by ID
+ *     tags: [Player]
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         schema:
+ *           type: string
+ *         required: true
+ *         description: The player ID
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               name:
+ *                 type: string
+ *               description:
+ *                 type: string
+ *               gold:
+ *                 type: number
+ *               silver:
+ *                 type: number
+ *               attackValue:
+ *                 type: number
+ *               defenseValue:
+ *                 type: number
+ *               hitPoints:
+ *                 type: number
+ *     responses:
+ *       200:
+ *         description: Player updated successfully
+ *       400:
+ *         description: Validation error
+ *       403:
+ *         description: Unauthorized
+ *       404:
+ *         description: Player not found
+ *       500:
+ *         description: Internal server error
+ */
 app.put('/player/:id', authenticate, async (req: any, res: any) => {
   const { id } = req.params;
   if (id !== req.user.id) {
@@ -157,7 +304,31 @@ app.put('/player/:id', authenticate, async (req: any, res: any) => {
   }
 });
 
-// Delete Player
+/**
+ * @swagger
+ * /player/{id}:
+ *   delete:
+ *     summary: Delete a player by ID
+ *     tags: [Player]
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         schema:
+ *           type: string
+ *         required: true
+ *         description: The player ID
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Player deleted successfully
+ *       403:
+ *         description: Unauthorized
+ *       404:
+ *         description: Player not found
+ *       500:
+ *         description: Internal server error
+ */
 app.delete('/player/:id', authenticate, async (req: any, res: any) => {
   const { id } = req.params;
   if (id !== req.user.id) {

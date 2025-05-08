@@ -5,7 +5,45 @@ import authenticate from '../middlewares/authMiddleware';
 import RedisClientSingleton from '../db/redisClient';
 import { v4 as uuidv4 } from 'uuid';
 
+/**
+ * @swagger
+ * tags:
+ *   name: Battle
+ *   description: Endpoints for initiating and retrieving battles
+ */
 
+/**
+ * @swagger
+ * /battle/{targetId}:
+ *   post:
+ *     summary: Enqueue a battle with another player
+ *     tags: [Battle]
+ *     parameters:
+ *       - in: path
+ *         name: targetId
+ *         schema:
+ *           type: string
+ *         required: true
+ *         description: The target player's ID
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Battle enqueued successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 enqueued:
+ *                   type: boolean
+ *                 battleId:
+ *                   type: string
+ *       404:
+ *         description: Target player not found
+ *       500:
+ *         description: Internal server error
+ */
 app.post('/battle/:targetId', authenticate, async (req: any, res: any) => {
   const redis = await RedisClientSingleton.getInstance();
   try {
@@ -30,6 +68,34 @@ app.post('/battle/:targetId', authenticate, async (req: any, res: any) => {
   }
 });
 
+/**
+ * @swagger
+ * /battle/{battleId}:
+ *   get:
+ *     summary: Retrieve battle report
+ *     tags: [Battle]
+ *     parameters:
+ *       - in: path
+ *         name: battleId
+ *         schema:
+ *           type: string
+ *         required: true
+ *         description: The ID of the battle to fetch
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Battle report retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               additionalProperties: true
+ *       403:
+ *         description: Unauthorized access to battle report
+ *       500:
+ *         description: Error retrieving battle report
+ */
 app.get('/battle/:battleId', authenticate, async (req: any, res: any) => {
   const redis = await RedisClientSingleton.getInstance();
   try {
