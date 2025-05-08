@@ -5,18 +5,44 @@ import { logger } from '../utils/logger';
 import { PlayerData } from '../types/player';
 import { BattleReport } from '../types/battle';
 
+/**
+ * Calculates the effective attack value of a player based on current HP.
+ * Ensures attack value doesn't fall below 50% even at low health.
+ *
+ * @param player - The player with base attack, total HP, and current HP.
+ * @returns Adjusted attack value based on health percentage.
+ */
 const calculateAttackValue = (player: { attack: number; hp: number, currentHp: number }) => {
   const healthPercentage = player.currentHp / player.hp;
   const attackValue = Math.floor(player.attack * Math.max(0.5, healthPercentage));
   return attackValue;
 };
 
+/**
+ * Determines whether an attack hits based on a D20 roll and attacker’s strength.
+ * A roll of 20 always hits (critical success).
+ *
+ * @param attack - The attacker’s attack stat.
+ * @param defense - The defender’s defense stat.
+ * @returns `true` if the attack hits, otherwise `false`.
+ */
 const randomHitCheck = (attack: number, defense: number) => {
-  const roll = Math.floor(Math.random() * 20) + 1; // Roll a D20
+  const roll = Math.floor(Math.random() * 20) + 1;
   const attackModifier = attack / 2;
-  return roll + attackModifier > defense || roll === 20; // Account for critical success
+  return roll + attackModifier > defense || roll === 20;
 };
 
+/**
+ * Processes up to 10 battles from the Redis battle queue.
+ * Skips battles where either player is already in a battle.
+ * Each battle is dequeued and handled asynchronously.
+ *
+ * 🔁 Called periodically by a background worker.
+ *
+ * @example
+ * import processBattle from './services/battleProcessor';
+ * await processBattle();
+ */
 const processBattle = async () => {
   const client = await RedisClientSingleton.getInstance();
 
@@ -58,6 +84,15 @@ const processBattle = async () => {
   }
 };
 
+/**
+ * Calculates a battle between two players.
+ * Tracks turn-by-turn events and updates resources and leaderboard.
+ *
+ * @param battleId - A UUID string identifying this battle.
+ *   @example "123e4567-e89b-12d3-a456-426614174000"
+ * @param player1 - Player data for the attacker.
+ * @param player2 - Player data for the defender.
+ */
 const battleFlow = async (battleId: string, player1: PlayerData, player2: PlayerData) => {
 
   let battle: BattleReport = {
@@ -127,6 +162,14 @@ const battleFlow = async (battleId: string, player1: PlayerData, player2: Player
   LeaderboardRepository.updateLeaderboardFromBattle(battle);
 };
 
+ /**
+ * Saves a battle report to Redis storage for later retrieval.
+ * The report key is based on the battle's UUID.
+ *
+ * @param battleId - The battle's UUID.
+ *   @example "123e4567-e89b-12d3-a456-426614174000"
+ * @param battleReport - The full report object including players, rounds, outcome, and stolen resources.
+ */
 const saveReport = async (battleId: string, battleReport: BattleReport) => {
   const client = await RedisClientSingleton.getInstance();
 

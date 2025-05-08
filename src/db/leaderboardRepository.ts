@@ -22,6 +22,31 @@ const getLeaderboard = async (page: number, perPage: number) => {
   } as LeaderboardEntry));
 };
 
+/**
+ * Updates the leaderboard and win streaks based on the outcome of a battle.
+ * 
+ * - Increments the winner's score using a base value plus bonus points from current streak,
+ *   and the amount of gold/silver stolen.
+ * - Decrements the loser's score based on the same gold/silver values (but ensures it doesn't go below 0).
+ * - Resets the loser's win streak and increments the winner's streak (max streak considered is 10).
+ *
+ * 🏆 Leaderboard and streak data are stored in Redis:
+ *   - Leaderboard: Sorted set `leaderboard`
+ *   - Streaks: Hash `battle:streaks`
+ *
+ * @param battle - A full battle report object containing players, stolen resources, and the winner.
+ * 
+ * @example
+ * await updateLeaderboardFromBattle({
+ *   players: [
+ *     { id: "player1", name: "Alice", attack: 10, hp: 100, defense: 5, currentHp: 30 },
+ *     { id: "player2", name: "Bob", attack: 8, hp: 100, defense: 4, currentHp: 0 }
+ *   ],
+ *   battleWinner: "Alice",
+ *   resourcesStolen: { gold: 120, silver: 250 },
+ *   rounds: [...]
+ * });
+ */
 const updateLeaderboardFromBattle = async (battle: BattleReport) => {
   const client = await RedisClientSingleton.getInstance();
 
@@ -33,26 +58,30 @@ const updateLeaderboardFromBattle = async (battle: BattleReport) => {
   const winnerId = winner.id;
   const loserId = loser.id;
 
+  // Calculate points from resources
   const goldPoints = Math.floor(battle.resourcesStolen.gold / GOLD_POINT_RATIO);
   const silverPoints = Math.floor(battle.resourcesStolen.silver / SILVER_POINT_RATIO);
 
+  // Fetch current win streak of the winner (max capped to 10)
   const winnerStreakRaw = await client.hGet('battle:streaks', winnerId);
   const winnerStreak = Math.min(parseInt(winnerStreakRaw || '0'), 10);
 
+  // Final score calculations
   const winPoints = WINNER_BASE + winnerStreak + goldPoints + silverPoints;
   const lossPoints = LOSER_BASE + goldPoints + silverPoints;
 
+  // Ensure loser score does not go below 0
   const currentLoserScoreRaw = await client.zScore('leaderboard', loserId);
   const currentLoserScore = currentLoserScoreRaw ?? 0;
   const newLoserScore = Math.max(0, currentLoserScore - lossPoints);
 
-  // Apply updates
+  // Apply all updates atomically
   await client
     .multi()
-    .zIncrBy('leaderboard', winPoints, winnerId)
-    .zAdd('leaderboard', { score: newLoserScore, value: loserId })
-    .hSet('battle:streaks', winnerId, winnerStreak + 1)
-    .hSet('battle:streaks', loserId, 0)
+    .zIncrBy('leaderboard', winPoints, winnerId)       // Add points to winner
+    .zAdd('leaderboard', { score: newLoserScore, value: loserId }) // Update loser's score
+    .hSet('battle:streaks', winnerId, winnerStreak + 1) // Increment winner's streak
+    .hSet('battle:streaks', loserId, 0)                 // Reset loser's streak
     .exec();
 };
 
