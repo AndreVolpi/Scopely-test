@@ -21,32 +21,41 @@ const processBattle = async () => {
   const client = await RedisClientSingleton.getInstance();
 
   // Get the next battle from the queue (blocking pop)
-  const battleId = await client.lPop('battleQueue');
-  if (!battleId) {
-    logger.info('No battles in queue, waiting...');
-    return;
+  const battleIds = await client.lRange('battleQueue', 0, 9);
+
+  for (const battleId of battleIds) {
+    // Get the players' data for the battle (you could store this directly in the battle object)
+    const battleData = await client.get(`battle:${battleId}`);
+    if (!battleData) {
+      logger.error(`Battle data not found for battleId: ${battleId}`);
+      return; // Skip this battle if we don't have data
+    }
+
+    const { player1Id, player2Id } = JSON.parse(battleData);
+
+    const isBusy = await client.sIsMember('battle:progress', player1Id) || await client.sIsMember('battle:progress', player2Id);
+    if (isBusy) continue;
+
+    const player1 = await RedisPlayerRepository.getPlayerById(player1Id);
+    const player2 = await RedisPlayerRepository.getPlayerById(player2Id);
+
+    if (!player1 || !player2) {
+      logger.error(`Invalid players data for battle: ${battleId}`);
+      return; // Skip this battle if we don't have data
+    }
+
+    // Lock players
+    await client.sAdd('battle:progress', [player1Id, player2Id]);
+
+    // Remove from queue and process asynchronously
+    await client.lRem('battleQueue', 1, battleId);
+
+    battleFlow(battleId, player1, player2).finally(async () => {
+      // Remove the battle from the queue
+      await client.sRem('battle:progress', [player1Id, player2Id]);
+      await client.del(`battle:${battleId}`);
+    });
   }
-
-  // Get the players' data for the battle (you could store this directly in the battle object)
-  const battleData = await client.get(`battle:${battleId}`);
-  if (!battleData) {
-    logger.error(`Battle data not found for battleId: ${battleId}`);
-    return; // Skip this battle if we don't have data
-  }
-
-  const { player1Id, player2Id } = JSON.parse(battleData);
-  const player1 = await RedisPlayerRepository.getPlayerById(player1Id);
-  const player2 = await RedisPlayerRepository.getPlayerById(player2Id);
-
-  if (!player1 || !player2) {
-    logger.error(`Invalid players data for battle: ${battleId}`);
-    return; // Skip this battle if we don't have data
-  }
-
-  await battleFlow(battleId, player1, player2);
-
-  // Remove the battle from the queue (if not already removed)
-  await client.del(`battle:${battleId}`);
 };
 
 const battleFlow = async (battleId: string, player1: PlayerData, player2: PlayerData) => {

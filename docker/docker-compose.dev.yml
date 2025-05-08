@@ -18,6 +18,23 @@ services:
       - scopely
     profiles: ["dev"]
 
+  worker:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    volumes:
+      - ..:/app
+      - /app/node_modules
+    env_file:
+      - ../.env
+    command: yarn dev-worker
+    depends_on:
+      redis:
+        condition: service_healthy
+    networks:
+      - scopely
+    profiles: ["dev"]
+
   redis:
     image: redis:7
     ports:

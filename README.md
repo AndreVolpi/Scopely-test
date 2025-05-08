@@ -46,7 +46,7 @@ JWT_SECRET=supersecuresecretkey
 To start the application in development mode inside docker, use the following command:
 
 ```bash
-make dev
+make dev-start
 ```
 
 ### 4. Testing the project

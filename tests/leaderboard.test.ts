@@ -6,6 +6,7 @@ import battleLogicService from '../src/services/battleLogicService';
 import { BattleReport } from '../src/types/battle';
 import LeaderboardRepository from '../src/db/leaderboardRepository';
 import RedisClientSingleton from '../src/db/redisClient';
+import { waitForBattlesToFinish } from './globalSetup';
 
 let redis: any;
 let battlePlayer1: PlayerData;
@@ -67,6 +68,7 @@ describe('Leaderboard API Endpoints', () => {
       .send()
       .set('Authorization', `Bearer ${playerToken}`);
     await battleLogicService();
+    await waitForBattlesToFinish();
   });
 
   it('should fetch top 10 leaderboard entries with pagination', async () => {

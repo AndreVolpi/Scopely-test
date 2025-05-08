@@ -5,6 +5,7 @@ import RedisClientSingleton from '../src/db/redisClient';
 import RedisPlayerRepository from '../src/db/playerRepository';
 import { app } from '../src/app';
 import request from 'supertest';
+import { waitForBattlesToFinish } from './globalSetup';
 
 let redis: any;
 let battlePlayer1: PlayerData;
@@ -32,7 +33,6 @@ const player2: Omit<PlayerData, 'id'> = {
   silver: 100,
 };
 
-
 beforeAll(async () => {
   redis = await RedisClientSingleton.getInstance();
   await redis.flushDb();
@@ -48,6 +48,10 @@ beforeAll(async () => {
   battlePlayer2 = response2.body;
 });
 
+afterEach(async () => {
+  await waitForBattlesToFinish();
+});
+
 describe('Battle Logic Service', () => {
   let battleId: string;
 
@@ -60,6 +64,7 @@ describe('Battle Logic Service', () => {
 
     // Run the battle logic
     await battleLogicService();
+    await waitForBattlesToFinish();
 
     // Reload players from Redis
     const updatedPlayer1 = await RedisPlayerRepository.getPlayerById(battlePlayer1.id);

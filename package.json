@@ -4,8 +4,10 @@
   "main": "dist/server.js",
   "scripts": {
     "dev": "ts-node-dev --respawn --transpile-only src/server.ts",
+    "dev-worker": "ts-node-dev --respawn --transpile-only src/battleWorker.ts",
     "build": "tsc",
     "start": "node dist/server.js",
+    "worker": "node dist/battleWorker.js",
     "test": "jest"
   },
   "dependencies": {

@@ -11,7 +11,7 @@ app.post('/battle/:targetId', authenticate, async (req: any, res: any) => {
   try {
     const targetPlayer = await RedisPlayerRepository.getPlayerById(req.params.targetId);
     if (!targetPlayer) {
-      logger.error({ message: 'Player not  playerfound.' }, 'Error enqueuing battle.');
+      logger.error({ message: 'Player not found.' }, 'Error enqueuing battle.');
       return res.send({ message: 'Player not found.' }, 404);
     }
 
